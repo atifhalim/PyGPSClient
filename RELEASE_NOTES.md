@@ -1,5 +1,11 @@
 # PyGPSClient Release Notes
 
+### UNRELEASED
+
+ENHANCEMENTS:
+
+1. Add **Survey / GCP Capture** dialog (Menu..Options..Survey / GCP Capture). Captures the current RTK position and, without manual copy/paste, (a) records Ground Control Points to a `gcp_survey.csv` field record and exports a WebODM / OpenDroneMap `gcp_list.txt` starter, and (b) writes the position into QGroundControl's `QGroundControl.ini` as the RTK "Use Specified Base Position". Supports a live receiver capture or manual entry (for PPK / no-internet workflows), and a helper to enable the u-blox `RXM-RAWX` / `RXM-SFRBX` raw messages needed for PPK. See [Survey / GCP Capture](https://github.com/semuconsulting/PyGPSClient/blob/master/README.md#survey).
+
 ### RELEASE 1.7.3
 
 FIXES:
