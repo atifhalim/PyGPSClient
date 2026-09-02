@@ -4,6 +4,7 @@
 [Prerequisites](#prereqs) |
 [User Privileges](#userpriv) |
 [Install with pip](#pip) |
+[Install this fork from source](#fork) |
 [Install with pipx](#pipx) |
 [Install with script](#script) |
 [Troubleshooting](#troubleshooting) |
@@ -208,6 +209,51 @@ sudo apt install python3-rasterio
 ```
 
 (see [troubleshooting](#troubleshooting) below for potential issues on some Linux / ARM platforms)
+
+## <a name="fork">Install this fork from source</a>
+
+The [`pip` install](#pip) above fetches the official release from PyPI. To run *this fork* - which adds the **Survey / GCP Capture** dialog (see the [README](https://github.com/atifhalim/PyGPSClient/blob/master/README.md#survey)) - install from the git branch instead. The steps below work on **MacOS, Linux and Windows**; MacOS-specific notes follow.
+
+1. Make sure you have a suitable Python with tkinter (see [Prerequisites](#prereqs)). On MacOS, an official [Python for MacOS](https://www.python.org/downloads/macos) package includes tkinter 8.6; you can verify tkinter with:
+
+   ```shell
+   python3 -m tkinter
+   ```
+
+   (a small test window should appear.)
+
+2. Clone the repository and check out the feature branch:
+
+   ```shell
+   git clone https://github.com/atifhalim/PyGPSClient.git
+   cd PyGPSClient
+   git checkout claude/pygpsclient-installation-tibd38
+   ```
+
+3. Install into a virtual environment (recommended):
+
+   ```shell
+   python3 -m venv venv
+   source venv/bin/activate  # on Windows: .\venv\Scripts\activate
+   python3 -m pip install --upgrade pip
+   python3 -m pip install .
+   ```
+
+   Use an editable install (`python3 -m pip install -e .`) if you want subsequent `git pull` updates to take effect without reinstalling.
+
+4. Run it:
+
+   ```shell
+   pygpsclient
+   ```
+
+   The new tool is available from **Menu..Options..Survey / GCP Capture**.
+
+### MacOS notes for this fork
+
+- **QGroundControl settings path.** The "Save as QGC base" action writes to QGroundControl's settings file. On MacOS (as on Linux) QGroundControl stores this, in Qt INI format, at `~/.config/QGroundControl.org/QGroundControl.ini`; the dialog resolves this path automatically. **Close QGroundControl before writing the base position and restart it afterwards**, as QGroundControl rewrites its settings file on exit.
+- **Serial driver.** Connect the GNSS receiver and check for its port with `ls /dev/tty.usb* /dev/cu.usb*`. Some boards require a CP210x / CH340 / FTDI USB-serial driver on MacOS; most u-blox USB receivers enumerate natively.
+- **tkinter version.** As noted in [Prerequisites](#prereqs), prefer official Python `<= 3.14.4` (or Homebrew `python-tk = 3.11`) to avoid the tkinter 9.0 UI performance issues on recent MacOS.
 
 ## <a name="pipx">Install using pipx</a>
 
