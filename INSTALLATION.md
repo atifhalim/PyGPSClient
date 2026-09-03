@@ -255,6 +255,12 @@ The [`pip` install](#pip) above fetches the official release from PyPI. To run *
 - **Serial driver.** Connect the GNSS receiver and check for its port with `ls /dev/tty.usb* /dev/cu.usb*`. Some boards require a CP210x / CH340 / FTDI USB-serial driver on MacOS; most u-blox USB receivers enumerate natively.
 - **tkinter version.** As noted in [Prerequisites](#prereqs), prefer official Python `<= 3.14.4` (or Homebrew `python-tk = 3.11`) to avoid the tkinter 9.0 UI performance issues on recent MacOS.
 
+### Windows notes for this fork
+
+- **Python + PATH.** Use the official [Python for Windows](https://www.python.org/downloads/windows/) installer (tkinter is included) and tick **"Add python.exe to PATH"** on the first installer screen. Activate the virtual environment with `.\venv\Scripts\activate`. If the `pygpsclient` command is not found after install, either re-run the installer and enable the PATH option, or launch it as a module: `python -m pygpsclient`.
+- **QGroundControl settings path.** The "Save as QGC base" action writes to QGroundControl's settings file. On Windows QGroundControl stores this, in Qt INI format, at `%APPDATA%\QGroundControl.org\QGroundControl.ini` (typically `C:\Users\<you>\AppData\Roaming\QGroundControl.org\QGroundControl.ini`); the dialog resolves this path automatically. **Close QGroundControl before writing the base position and restart it afterwards**, as QGroundControl rewrites its settings file on exit.
+- **Serial driver.** The GNSS receiver appears as a `COM` port (visible in Device Manager). Some boards need a CP210x / CH340 / FTDI USB-serial driver; most u-blox USB receivers enumerate natively.
+
 ## <a name="pipx">Install using pipx</a>
 
 [pipx](https://pipx.pypa.io/latest/installation/) is essentially a wrapper around the standard `pip` command which provides simplified syntax for virtual environment installation:
