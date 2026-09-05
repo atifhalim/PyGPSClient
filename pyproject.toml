@@ -58,8 +58,14 @@ dependencies = [
     "pyubx2>=1.3.5",
 ]
 
+[project.optional-dependencies]
+# MAVLink RTCM injection (headless RTCM3 -> GPS_RTCM_DATA). Only needed for the
+# rtcm-mavlink tool, not for the GUI, so kept out of the core dependencies.
+mavlink = ["pymavlink>=2.4.40"]
+
 [project.scripts]
 pygpsclient = "pygpsclient.__main__:main"
+rtcm-mavlink = "pygpsclient.rtcm_mavlink_cli:main"
 
 [project.urls]
 homepage = "https://github.com/semuconsulting/PyGPSClient"
