@@ -11,11 +11,32 @@ USB/serial/network access — both the service and the GUI run natively.
 ## 1. Prerequisites
 
 ```bash
-python3 --version         # must be >= 3.10 (JetPack 6 / Ubuntu 22.04 = 3.10 OK;
-                          # on older JetPack install a newer Python into a venv)
+python3 --version         # must be >= 3.10
 sudo apt update
 sudo apt install -y python3-venv python3-tk git   # python3-tk only needed for the GUI
 ```
+
+### If Python is < 3.10 (JetPack 5 / Ubuntu 20.04 ships Python 3.8)
+
+PyGPSClient needs Python >= 3.10, and the modern SPDX `license` field in
+`pyproject.toml` needs `setuptools >= 77` (Python >= 3.9). On JetPack 5 (Python
+3.8) the install fails at build time with
+``project.license` must be valid exactly by one definition`` — that is the old
+setuptools, not a bug. Reflashing to **JetPack 6** (Ubuntu 22.04, Python 3.10)
+is the clean fix; to add a newer Python without reflashing, the most reliable
+aarch64 route is **Miniforge** (prebuilt, no compiling):
+
+```bash
+wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh
+bash Miniforge3-Linux-aarch64.sh -b -p $HOME/miniforge3
+$HOME/miniforge3/bin/conda create -y -n rtk python=3.11
+source $HOME/miniforge3/bin/activate rtk
+python --version          # 3.11.x
+```
+
+Then install into that env (below) and set the service `ExecStart=` to
+`$HOME/miniforge3/envs/rtk/bin/rtcm-mavlink` instead of the venv path.
+(`pyenv` works too but compiles Python from source, ~10 min on a Jetson.)
 
 ## 2. Install the fork
 
@@ -28,6 +49,11 @@ python3 -m venv venv
 ./venv/bin/python -m pip install --upgrade pip
 ./venv/bin/python -m pip install ".[mavlink]"     # includes pymavlink for the injector
 ```
+
+> Using the Miniforge env from above instead of a venv? Skip `python3 -m venv`
+> and, with the `rtk` env activated, run `pip install --upgrade pip setuptools
+> wheel` then `pip install ".[mavlink]"`. Everywhere below that references
+> `./venv/bin/...`, use the env's `bin` (e.g. `$HOME/miniforge3/envs/rtk/bin/`).
 
 Confirm it runs on ARM64 (no display needed for these):
 
