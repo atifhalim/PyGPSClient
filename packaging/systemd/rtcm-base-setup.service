@@ -1,0 +1,25 @@
+[Unit]
+# One-shot: configure the local u-blox receiver as an RTK base station and
+# enable its RTCM3 output, before the injector starts. Idempotent - safe to
+# re-run on every boot.
+Description=Configure u-blox RTK base (PyGPSClient gnss-base)
+Documentation=https://github.com/atifhalim/PyGPSClient/blob/master/docs/jetson_deploy.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=/etc/rtcm-base.env
+# $GNSS_BASE_ARGS is unquoted so systemd word-splits it into CLI arguments.
+ExecStart=/opt/pygpsclient/venv/bin/gnss-base $GNSS_BASE_ARGS
+User=rtk
+Group=rtk
+SupplementaryGroups=dialout
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

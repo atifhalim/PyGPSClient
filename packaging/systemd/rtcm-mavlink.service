@@ -4,9 +4,9 @@
 # Herelink Wi-Fi stream) so the autopilot relays corrections to the rover.
 Description=RTCM3 to MAVLink injector (PyGPSClient)
 Documentation=https://github.com/atifhalim/PyGPSClient/blob/master/docs/jetson_deploy.md
-# Start after the network and any USB serial device is up
-After=network-online.target
-Wants=network-online.target
+# Start after the network is up and the base receiver has been configured
+After=network-online.target rtcm-base-setup.service
+Wants=network-online.target rtcm-base-setup.service
 
 [Service]
 Type=simple

@@ -77,7 +77,30 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 ls -l /dev/rtk-base                               # should point at the base's ttyACM*/ttyUSB*
 ```
 
-## 4. Install the service
+## 4. Configure the base station
+
+The receiver ships in rover mode (NMEA/UBX). `gnss-base` turns it into an RTK
+base and enables the RTCM3 set (1005 + MSM4 + 1230). Interactively:
+
+```bash
+# survey-in base (location changes each deployment); --wait polls to completion
+./venv/bin/gnss-base --port /dev/rtk-base --mode svin --svin-dur 60 --svin-acc 2.0 --wait 180
+
+# ...or a fixed base at a known surveyed monument (cm-accurate, instant):
+./venv/bin/gnss-base --port /dev/rtk-base --mode fixed \
+    --lat 53.450012345 --lon -2.312345678 --height 74.321 --persist
+
+# ...back to rover:
+./venv/bin/gnss-base --port /dev/rtk-base --mode disable
+```
+
+`--persist` writes the config to BBR+Flash so it survives a power-cycle. The
+boot service below applies it automatically, so persisting is optional.
+
+## 5. Install the services
+
+Two units: `rtcm-base-setup` (one-shot, configures the base) runs first, then
+`rtcm-mavlink` (the injector) starts.
 
 ```bash
 # service account with serial (dialout) access, and a writable state dir
@@ -85,16 +108,24 @@ sudo useradd --system --no-create-home --shell /usr/sbin/nologin -G dialout rtk 
 sudo mkdir -p /var/lib/rtcm-mavlink && sudo chown rtk:rtk /var/lib/rtcm-mavlink
 
 # configuration
+sudo cp packaging/systemd/rtcm-base.env.example    /etc/rtcm-base.env
 sudo cp packaging/systemd/rtcm-mavlink.env.example /etc/rtcm-mavlink.env
-sudoedit /etc/rtcm-mavlink.env                    # set the base port, --dest, --monitor
+sudoedit /etc/rtcm-base.env                        # base mode / port
+sudoedit /etc/rtcm-mavlink.env                     # base port, --dest, --monitor
 
-# unit
-sudo cp packaging/systemd/rtcm-mavlink.service /etc/systemd/system/
+# units
+sudo cp packaging/systemd/rtcm-base-setup.service /etc/systemd/system/
+sudo cp packaging/systemd/rtcm-mavlink.service    /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now rtcm-mavlink.service
+sudo systemctl enable --now rtcm-base-setup.service   # configures the base
+sudo systemctl enable --now rtcm-mavlink.service      # injects (starts after it)
 ```
 
-## 5. Watch it work (validation, via the journal)
+> If you installed into the Miniforge `rtk` env rather than a venv, set the
+> services' `ExecStart=` paths to `$HOME/miniforge3/envs/rtk/bin/gnss-base` and
+> `.../rtcm-mavlink` before enabling them.
+
+## 6. Watch it work (validation, via the journal)
 
 ```bash
 journalctl -u rtcm-mavlink.service -f
@@ -116,7 +147,7 @@ sudo systemctl stop rtcm-mavlink.service     # rover fix should drop from RTK
 sudo systemctl start rtcm-mavlink.service    # ... and climb back
 ```
 
-## 6. Using the GUI on the Jetson (optional)
+## 7. Using the GUI on the Jetson (optional)
 
 The Survey / GCP Capture dialog is tkinter, so it needs a display — an attached
 HDMI monitor, or a VNC / remote-desktop session into the Jetson. With a display
