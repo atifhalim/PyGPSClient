@@ -16,15 +16,18 @@ sudo apt update
 sudo apt install -y python3-venv python3-tk git   # python3-tk only needed for the GUI
 ```
 
-### If Python is < 3.10 (JetPack 5 / Ubuntu 20.04 ships Python 3.8)
+### Python on the Xavier NX (JetPack 5 ships Python 3.8)
 
 PyGPSClient needs Python >= 3.10, and the modern SPDX `license` field in
 `pyproject.toml` needs `setuptools >= 77` (Python >= 3.9). On JetPack 5 (Python
 3.8) the install fails at build time with
 ``project.license` must be valid exactly by one definition`` — that is the old
-setuptools, not a bug. Reflashing to **JetPack 6** (Ubuntu 22.04, Python 3.10)
-is the clean fix; to add a newer Python without reflashing, the most reliable
-aarch64 route is **Miniforge** (prebuilt, no compiling):
+setuptools, not a bug.
+
+**The Jetson Xavier NX cannot run JetPack 6** (JetPack 6 supports only the Orin
+series; Xavier tops out at JetPack 5.1.x), so upgrading the OS is not an option
+here — you **add** a newer Python on top of JetPack 5. The most reliable aarch64
+route is **Miniforge** (prebuilt, no compiling):
 
 ```bash
 wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh
