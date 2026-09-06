@@ -1,0 +1,30 @@
+[Unit]
+# RTCM3 -> MAVLink GPS_RTCM_DATA injector (pygpsclient rtcm-mavlink). Reads
+# RTCM3 from the local base and injects it onto a MAVLink link (e.g. the
+# Herelink Wi-Fi stream) so the autopilot relays corrections to the rover.
+#
+# This is a systemd *user* service. It is NOT enabled at boot: the launcher
+# (pygpsclient-rtk) starts it when you open the GUI, and systemd then keeps it
+# alive across crashes / USB dropouts / Herelink link loss via Restart=always.
+Description=RTCM3 to MAVLink injector (PyGPSClient)
+Documentation=https://github.com/atifhalim/PyGPSClient/blob/master/docs/jetson_deploy.md
+# Start after the base receiver has been configured.
+After=rtcm-base-setup.service
+Wants=rtcm-base-setup.service
+
+[Service]
+Type=simple
+# Configuration (RTCM source, MAVLink dest, monitor) lives in this env file.
+EnvironmentFile=%h/.config/rtcm-mavlink.env
+# %h expands to your home directory; edit the path if you use a venv instead of
+# the miniforge 'rtk' env. $RTCM_MAVLINK_ARGS is unquoted so systemd
+# word-splits it into separate CLI arguments.
+ExecStart=%h/miniforge3/envs/rtk/bin/rtcm-mavlink $RTCM_MAVLINK_ARGS
+# Keep it running across base reboots, transient USB dropouts, link loss.
+Restart=always
+RestartSec=3
+
+[Install]
+# Only relevant if you ever 'systemctl --user enable' it; by default the
+# launcher starts it on demand and it is not enabled.
+WantedBy=default.target

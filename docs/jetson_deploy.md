@@ -1,19 +1,26 @@
 # Deploy on Jetson Xavier NX (everything on one board)
 
-This runs the whole solution on a Jetson Xavier NX — no laptop:
+This runs the whole solution on a Jetson Xavier NX — no laptop — with an
+attached 10" touchscreen so you keep full manual control:
 
-- the **RTCM → MAVLink injector** as an always-on `systemd` service (headless), and
-- the **Survey / GCP Capture GUI** and other tools when a display is attached.
+- You **open the application yourself** (a desktop icon, `pygpsclient-rtk`).
+- Launching it **starts the RTK services automatically**: the base-setup
+  (configures the u-blox base) and the **RTCM → MAVLink injector**.
+- systemd then **keeps those services alive** — a crash, a USB dropout, or a
+  dropped Herelink link is restarted on its own (`Restart=always`).
+- **Nothing starts at boot.** The services come up only when you launch the
+  app, and you can stop them any time.
 
-The Jetson is a full Ubuntu (ARM64) machine, so there is no sandbox and full
-USB/serial/network access — both the service and the GUI run natively.
+They run as **systemd `--user` services**, so there is no `sudo`, no system
+service account, and no boot enablement — everything is tied to your login
+session and under your control.
 
 ## 1. Prerequisites
 
 ```bash
 python3 --version         # must be >= 3.10
 sudo apt update
-sudo apt install -y python3-venv python3-tk git   # python3-tk only needed for the GUI
+sudo apt install -y python3-tk git   # python3-tk for the GUI
 ```
 
 ### Python on the Xavier NX (JetPack 5 ships Python 3.8)
@@ -37,37 +44,42 @@ source $HOME/miniforge3/bin/activate rtk
 python --version          # 3.11.x
 ```
 
-Then install into that env (below) and set the service `ExecStart=` to
-`$HOME/miniforge3/envs/rtk/bin/rtcm-mavlink` instead of the venv path.
-(`pyenv` works too but compiles Python from source, ~10 min on a Jetson.)
+The rest of this guide assumes the `rtk` env lives at
+`$HOME/miniforge3/envs/rtk` (so its programs are at
+`$HOME/miniforge3/envs/rtk/bin/…`). If you use a plain venv instead, substitute
+your venv's `bin` path everywhere below (and in the two `.service` files).
 
 ## 2. Install the fork
 
 ```bash
-sudo mkdir -p /opt/pygpsclient && sudo chown "$USER" /opt/pygpsclient
-git clone https://github.com/atifhalim/PyGPSClient.git /opt/pygpsclient
-cd /opt/pygpsclient
+git clone https://github.com/atifhalim/PyGPSClient.git ~/PyGPSClient
+cd ~/PyGPSClient
 git checkout claude/pygpsclient-installation-tibd38
-python3 -m venv venv
-./venv/bin/python -m pip install --upgrade pip
-./venv/bin/python -m pip install ".[mavlink]"     # includes pymavlink for the injector
+# with the 'rtk' env active:
+pip install --upgrade pip setuptools wheel
+pip install ".[mavlink]"          # includes pymavlink for the injector
 ```
 
-> Using the Miniforge env from above instead of a venv? Skip `python3 -m venv`
-> and, with the `rtk` env activated, run `pip install --upgrade pip setuptools
-> wheel` then `pip install ".[mavlink]"`. Everywhere below that references
-> `./venv/bin/...`, use the env's `bin` (e.g. `$HOME/miniforge3/envs/rtk/bin/`).
+This installs the console scripts into the env's `bin`: `pygpsclient`,
+`pygpsclient-rtk` (the launcher), `gnss-base`, and `rtcm-mavlink`.
 
-Confirm it runs on ARM64 (no display needed for these):
+Confirm it runs on ARM64 (no display needed):
 
 ```bash
-./venv/bin/python -m pip install pytest
-./venv/bin/python -m pytest tests/ -q -o addopts=""
+pip install pytest
+pytest tests/ -q -o addopts=""
 ```
 
-## 3. Stable name for the base receiver
+## 3. Serial access + a stable name for the base receiver
 
-So the service always finds the base regardless of USB enumeration order,
+Your **login user** needs serial access — add it to `dialout` once, then log
+out/in (or reboot):
+
+```bash
+sudo usermod -aG dialout "$USER"
+```
+
+So the services always find the base regardless of USB enumeration order,
 install the udev rule (edit the ids first):
 
 ```bash
@@ -77,97 +89,130 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 ls -l /dev/rtk-base                               # should point at the base's ttyACM*/ttyUSB*
 ```
 
-## 4. Configure the base station
+(If you skip the udev rule, use the raw device path such as `/dev/ttyACM0` in
+the env files below.)
 
-The receiver ships in rover mode (NMEA/UBX). `gnss-base` turns it into an RTK
-base and enables the RTCM3 set (1005 + MSM4 + 1230). Interactively:
+## 4. Configure the correction services (env files)
+
+The services read their arguments from two **user-owned** env files under
+`~/.config` (no `sudo`). Copy the examples and edit them:
 
 ```bash
-# survey-in base (location changes each deployment); --wait polls to completion
-./venv/bin/gnss-base --port /dev/rtk-base --mode svin --svin-dur 60 --svin-acc 2.0 --wait 180
+mkdir -p ~/.config
+cp packaging/systemd/rtcm-base.env.example    ~/.config/rtcm-base.env
+cp packaging/systemd/rtcm-mavlink.env.example ~/.config/rtcm-mavlink.env
+$EDITOR ~/.config/rtcm-base.env               # base mode / port
+$EDITOR ~/.config/rtcm-mavlink.env            # base port, --dest, --monitor
+```
 
+`~/.config/rtcm-base.env` — survey-in base (location changes each deployment):
+
+```
+GNSS_BASE_ARGS=--port /dev/rtk-base --mode svin --svin-dur 60 --svin-acc 2.0 --persist
+```
+
+`~/.config/rtcm-mavlink.env` — inject to the Herelink stream and self-monitor:
+
+```
+RTCM_MAVLINK_ARGS=--rtcm-serial /dev/rtk-base --baud 115200 --dest udpout:<HERELINK_IP>:14552 --monitor udpin:0.0.0.0:14552
+```
+
+You can also configure the base by hand any time (the GUI or the launcher must
+not hold the same serial port simultaneously):
+
+```bash
+# survey-in (location changes each deployment); --wait polls to completion:
+gnss-base --port /dev/rtk-base --mode svin --svin-dur 60 --svin-acc 2.0 --wait 180
 # ...or a fixed base at a known surveyed monument (cm-accurate, instant):
-./venv/bin/gnss-base --port /dev/rtk-base --mode fixed \
-    --lat 53.450012345 --lon -2.312345678 --height 74.321 --persist
-
+gnss-base --port /dev/rtk-base --mode fixed --lat 53.450012345 --lon -2.312345678 --height 74.321 --persist
 # ...back to rover:
-./venv/bin/gnss-base --port /dev/rtk-base --mode disable
+gnss-base --port /dev/rtk-base --mode disable
 ```
 
-`--persist` writes the config to BBR+Flash so it survives a power-cycle. The
-boot service below applies it automatically, so persisting is optional.
+## 5. Install the user services (once)
 
-## 5. Install the services
-
-Two units: `rtcm-base-setup` (one-shot, configures the base) runs first, then
-`rtcm-mavlink` (the injector) starts.
+The two units live under `~/.config/systemd/user/` and run as you. **They are
+installed, not enabled** — nothing starts at boot; the launcher starts them.
 
 ```bash
-# service account with serial (dialout) access, and a writable state dir
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin -G dialout rtk || true
-sudo mkdir -p /var/lib/rtcm-mavlink && sudo chown rtk:rtk /var/lib/rtcm-mavlink
-
-# configuration
-sudo cp packaging/systemd/rtcm-base.env.example    /etc/rtcm-base.env
-sudo cp packaging/systemd/rtcm-mavlink.env.example /etc/rtcm-mavlink.env
-sudoedit /etc/rtcm-base.env                        # base mode / port
-sudoedit /etc/rtcm-mavlink.env                     # base port, --dest, --monitor
-
-# units
-sudo cp packaging/systemd/rtcm-base-setup.service /etc/systemd/system/
-sudo cp packaging/systemd/rtcm-mavlink.service    /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now rtcm-base-setup.service   # configures the base
-sudo systemctl enable --now rtcm-mavlink.service      # injects (starts after it)
+mkdir -p ~/.config/systemd/user
+cp packaging/systemd/user/rtcm-base-setup.service ~/.config/systemd/user/
+cp packaging/systemd/user/rtcm-mavlink.service    ~/.config/systemd/user/
+systemctl --user daemon-reload
 ```
 
-> If you installed into the Miniforge `rtk` env rather than a venv, set the
-> services' `ExecStart=` paths to `$HOME/miniforge3/envs/rtk/bin/gnss-base` and
-> `.../rtcm-mavlink` before enabling them.
+> The units point `ExecStart=` at `%h/miniforge3/envs/rtk/bin/…` (`%h` = your
+> home). If you installed into a venv, edit the two files to your venv's `bin`.
 
-## 6. Watch it work (validation, via the journal)
+Do **not** `systemctl --user enable` them — leaving them disabled is what keeps
+them off at boot. (If you ever want them to survive a full logout without the
+GUI open, that would need `loginctl enable-linger`; by design we don't.)
+
+## 6. Launch it (the everyday flow)
+
+Open the application yourself — the launcher starts both services, then opens
+the GUI:
 
 ```bash
-journalctl -u rtcm-mavlink.service -f
+pygpsclient-rtk
+```
+
+For the touchscreen, install the desktop icon so you can just tap it:
+
+```bash
+mkdir -p ~/.local/share/applications
+cp packaging/xdg/pygpsclient-rtk.desktop ~/.local/share/applications/
+# edit Exec= to the full path, e.g. /home/atif/miniforge3/envs/rtk/bin/pygpsclient-rtk
+$EDITOR ~/.local/share/applications/pygpsclient-rtk.desktop
+```
+
+Manual control, any time:
+
+```bash
+pygpsclient-rtk status     # or: systemctl --user status rtcm-mavlink.service
+pygpsclient-rtk stop       # stop both services
+pygpsclient-rtk            # start them again + reopen the GUI
+```
+
+Because the injector is a supervised service (not a child of the GUI), closing
+the GUI window does **not** interrupt corrections in flight — stop them
+explicitly with `pygpsclient-rtk stop` when you're done.
+
+## 7. Watch it work (validation, via the journal)
+
+```bash
+journalctl --user -u rtcm-mavlink.service -f
 ```
 
 With `--monitor` in the env file, the log prints a live RTK verdict, e.g.:
 
 ```
-[RTK ACTIVE ✓] sets=1240 GPS RTK FIXED sats=32 rtk_rate=115
+[RTK ACTIVE ✓] sets=1240 GPS RTK FIXED sats=32
 ```
 
 This is your Stage C/D check (see
 [rtcm_mavlink_validation.md](rtcm_mavlink_validation.md)): the rover should
-climb to RTK FLOAT/FIXED and `rtk_rate` should be non-zero. Do the **toggle
-test** to prove causality:
+climb to RTK FLOAT/FIXED. Prove causality with the **toggle test**:
 
 ```bash
-sudo systemctl stop rtcm-mavlink.service     # rover fix should drop from RTK
-sudo systemctl start rtcm-mavlink.service    # ... and climb back
+systemctl --user stop rtcm-mavlink.service     # rover fix should drop from RTK
+systemctl --user start rtcm-mavlink.service    # ... and climb back
 ```
 
-## 7. Using the GUI on the Jetson (optional)
+## 8. Using the Survey / GCP GUI
 
-The Survey / GCP Capture dialog is tkinter, so it needs a display — an attached
-HDMI monitor, or a VNC / remote-desktop session into the Jetson. With a display
-available:
-
-```bash
-cd /opt/pygpsclient && ./venv/bin/pygpsclient
-```
-
-Then **Menu → Options → Survey / GCP Capture** for base survey and GCP capture.
-The headless service and the GUI can both be present on the same board; you only
-open the GUI when you actually need it.
+The GUI opens with `pygpsclient-rtk` (or plain `pygpsclient`). Then
+**Menu → Options → Survey / GCP Capture** for base survey and GCP capture.
 
 ## Notes
 
 - **Serial vs the service:** only one program can hold the base's serial port.
-  If you open the base in the GUI, stop the service first (`sudo systemctl stop
-  rtcm-mavlink`) and vice-versa.
+  If you open the base directly in the GUI, stop the injector first
+  (`pygpsclient-rtk stop`) and vice-versa.
 - **Herelink link:** the Jetson must be on the Herelink Wi-Fi network to reach
   its MAVLink stream (`--dest udpout:<herelink-ip>:14552`). Check reachability
   with `ping <herelink-ip>`.
 - **Bandwidth:** keep the base RTCM message set lean (1005/1006 + MSM4
   1074/1084/1094/1124 + 1230) so it fits comfortably over the Herelink link.
+- **No boot autostart by design:** the services are disabled user units. They
+  start only when you launch the app and stop when you tell them to.
