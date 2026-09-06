@@ -242,16 +242,18 @@ class RTKMonitor:
 
     def rtk_active(self) -> bool:
         """
-        True if any GPS reports RTK float/fixed AND a non-zero injection rate.
+        True if any GPS reports an RTK fix (float or fixed).
 
-        :return: whether corrections are demonstrably being consumed
+        ``GPS_RAW_INT.fix_type`` reaching 5/6 is the authoritative proof that the
+        rover is consuming injected corrections. ``GPS_RTK.rtk_rate`` is a useful
+        extra confirmation, but many ArduPilot/PX4 configurations do not emit
+        ``GPS_RTK`` at all, so it must not be required here.
+
+        :return: whether the rover has reached an RTK solution
         :rtype: bool
         """
 
-        for s in self.state.values():
-            if s.get("fix_type", 0) >= FIX_RTK_FLOAT and s.get("rtk_rate", 0) > 0:
-                return True
-        return False
+        return self.best_fix() >= FIX_RTK_FLOAT
 
     def close(self):
         """Close the underlying MAVLink connection."""

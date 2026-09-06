@@ -23,8 +23,11 @@ which the autopilot reports back on the same MAVLink stream:
 is consuming RTCM. If injection is the *only* correction source and the rover
 reaches RTK, the path works. The **toggle test** (below) removes all doubt.
 
-The `rtcm-mavlink --monitor` flag reads these back and prints a live verdict; its
-`rtk_active()` check requires *both* fix_type ≥ 5 **and** rtk_rate > 0.
+The `rtcm-mavlink --monitor` flag reads these back and prints a live verdict.
+Its `rtk_active()` check keys off **`fix_type` ≥ 5** (RTK float/fixed) — the
+authoritative signal. `GPS_RTK.rtk_rate` is shown as extra confirmation *when
+available*, but is **not required**: many ArduPilot/PX4 configs don't emit
+`GPS_RTK` at all (a rover can reach RTK FLOAT/FIXED with no `GPS_RTK` message).
 
 ## Where to observe it
 
