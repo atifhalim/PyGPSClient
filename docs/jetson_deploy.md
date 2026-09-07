@@ -114,8 +114,20 @@ GNSS_BASE_ARGS=--port /dev/rtk-base --mode svin --svin-dur 60 --svin-acc 2.0 --p
 `~/.config/rtcm-mavlink.env` — inject to the Herelink stream and self-monitor:
 
 ```
-RTCM_MAVLINK_ARGS=--rtcm-serial /dev/rtk-base --baud 115200 --dest udpout:<HERELINK_IP>:14552 --monitor udpin:0.0.0.0:14552
+RTCM_MAVLINK_ARGS=--rtcm-serial /dev/ttyACM0 --baud 115200 --dest udpout:192.168.43.1:14550 --monitor udpin:0.0.0.0:14550
 ```
+
+> **Finding the Herelink endpoint.** The Herelink controller broadcasts MAVLink
+> over its own Wi-Fi hotspot. On the tested unit that is **`192.168.43.1:14550`**
+> (the Android hotspot gateway, on the standard MAVLink/QGC UDP port 14550 — not
+> 14552). If yours differs, connect the Jetson to the Herelink Wi-Fi and find
+> where MAVLink actually arrives:
+> ```
+> sudo tcpdump -n -i wlan0 udp portrange 14550-14555   # source ip:port = the endpoint
+> ```
+> then use that IP/port for both `--dest` and `--monitor`. The Herelink must
+> also be **sharing MAVLink over Wi-Fi** and the drone must be linked (its
+> telemetry visible in the controller's QGC) or nothing is forwarded.
 
 You can also configure the base by hand any time (the GUI or the launcher must
 not hold the same serial port simultaneously):
@@ -181,8 +193,14 @@ explicitly with `pygpsclient-rtk stop` when you're done.
 ## 7. Watch it work (validation, via the journal)
 
 ```bash
-journalctl --user -u rtcm-mavlink.service -f
+journalctl _SYSTEMD_USER_UNIT=rtcm-mavlink.service -f
 ```
+
+> On JetPack's older systemd, user-unit logs land in the **system** journal, so
+> `journalctl --user -u …` reports "No journal files were found" even while the
+> service runs. Use the `_SYSTEMD_USER_UNIT=` form above (add `sudo` if it says
+> permission denied), or just watch the status live:
+> `watch -n 1 'systemctl --user status rtcm-mavlink.service --no-pager | tail -n 8'`.
 
 With `--monitor` in the env file, the log prints a live RTK verdict, e.g.:
 
@@ -192,7 +210,16 @@ With `--monitor` in the env file, the log prints a live RTK verdict, e.g.:
 
 This is your Stage C/D check (see
 [rtcm_mavlink_validation.md](rtcm_mavlink_validation.md)): the rover should
-climb to RTK FLOAT/FIXED. Prove causality with the **toggle test**:
+climb to RTK FLOAT/FIXED. `rtk_rate` may stay 0 if the autopilot does not emit
+the optional `GPS_RTK` message — key off the `GPS <fix>` word instead.
+
+> **Open sky is required for RTK.** With the base antenna **indoors** the rover
+> tops out at **`GPS DGPS`** (fix type 4) — that already proves corrections are
+> flowing and being applied, but carrier-phase RTK (FLOAT 5 / FIXED 6) needs the
+> base *and* rover antennas to have a clear view of the sky. An indoor DGPS
+> result is a successful end-to-end test; move both antennas outside for FIXED.
+
+Prove causality with the **toggle test**:
 
 ```bash
 systemctl --user stop rtcm-mavlink.service     # rover fix should drop from RTK
