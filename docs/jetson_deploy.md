@@ -256,7 +256,36 @@ systemctl --user stop rtcm-mavlink.service     # rover fix should drop from RTK
 systemctl --user start rtcm-mavlink.service    # ... and climb back
 ```
 
-## 8. Using the Survey / GCP GUI (while injecting)
+## 8. RTK Control Panel (buttons + live status, no terminal)
+
+For an app-like control surface, run the **control panel** instead of watching
+the journal:
+
+```bash
+pygpsclient-rtk-panel
+```
+
+It shows a big colour-coded **fix state** (NO FIX / 3D / DGPS / RTK FLOAT / RTK
+FIXED), the **sats** and **sets** counters, the three **service indicators**
+(Base / Relay / Injector), a rolling **live log**, and buttons: **Start
+pipeline**, **Pause injection**, **Resume injection**, **Stop pipeline**. Pause/
+Resume act on the injector only, so the relay and GUI base feed stay up.
+
+Touchscreen icon:
+
+```bash
+cp packaging/xdg/pygpsclient-rtk-panel.desktop ~/.local/share/applications/
+sed -i 's|^Exec=.*|Exec=/home/atif/miniforge3/envs/rtk/bin/pygpsclient-rtk-panel|' \
+    ~/.local/share/applications/pygpsclient-rtk-panel.desktop
+cp ~/.local/share/applications/pygpsclient-rtk-panel.desktop ~/Desktop/
+chmod +x ~/Desktop/pygpsclient-rtk-panel.desktop
+```
+
+(GNOME: right-click → **Allow Launching** the first time.) The panel reads the
+same systemd user services the launcher manages, so it stays in sync with
+`pygpsclient-rtk` and the toggle icon.
+
+## 9. Using the Survey / GCP GUI (while injecting)
 
 The GUI opens with `pygpsclient-rtk`. Because `gnss-server` re-serves the
 receiver over local TCP, the GUI can watch the **same** receiver the injector

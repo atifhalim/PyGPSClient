@@ -66,6 +66,7 @@ mavlink = ["pymavlink>=2.4.40"]
 [project.scripts]
 pygpsclient = "pygpsclient.__main__:main"
 pygpsclient-rtk = "pygpsclient.rtk_launcher:main"
+pygpsclient-rtk-panel = "pygpsclient.rtk_control_panel:main"
 rtcm-mavlink = "pygpsclient.rtcm_mavlink_cli:main"
 gnss-base = "pygpsclient.gnss_base_cli:main"
 
