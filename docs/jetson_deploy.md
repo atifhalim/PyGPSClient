@@ -197,24 +197,12 @@ pygpsclient-rtk            # start them again + reopen the GUI
 # pause ONLY corrections to the drone; relay + GUI/base feed stay up:
 pygpsclient-rtk pause      # stop the injector only
 pygpsclient-rtk resume     # start the injector only
-pygpsclient-rtk toggle     # flip the injector on/off (used by the toggle icon)
 ```
 
-`pause`/`resume`/`toggle` touch **only the injector** (`rtcm-mavlink`) — the
-relay keeps running, so the GUI's base view and GCP capture stay live while
-corrections to the drone are paused. For a touchscreen button, install the
-toggle icon:
-
-```bash
-cp packaging/xdg/pygpsclient-rtk-toggle.desktop ~/.local/share/applications/
-sed -i 's|^Exec=.*|Exec=/home/atif/miniforge3/envs/rtk/bin/pygpsclient-rtk toggle|' \
-    ~/.local/share/applications/pygpsclient-rtk-toggle.desktop
-cp ~/.local/share/applications/pygpsclient-rtk-toggle.desktop ~/Desktop/
-chmod +x ~/Desktop/pygpsclient-rtk-toggle.desktop
-```
-
-(GNOME: right-click it → **Allow Launching** the first time. It shows a
-notification with the new state on each tap.)
+`pause`/`resume` touch **only the injector** (`rtcm-mavlink`) — the relay keeps
+running, so the GUI's base view and GCP capture stay live while corrections to
+the drone are paused. For touchscreen Start/Pause buttons plus live status, use
+the **RTK Control Panel** (section 8).
 
 Because the injector is a supervised service (not a child of the GUI), closing
 the GUI window does **not** interrupt corrections in flight — `pygpsclient-rtk
