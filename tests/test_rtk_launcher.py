@@ -97,24 +97,6 @@ def test_resume_injection_starts_only_injector():
     call.assert_called_once_with(["systemctl", "--user", "start", rl.INJECTOR_UNIT])
 
 
-def test_toggle_pauses_when_active():
-    with mock.patch.object(rl, "injection_active", return_value=True), mock.patch.object(
-        rl, "pause_injection", return_value=0
-    ) as pause, mock.patch.object(rl, "resume_injection") as resume:
-        assert rl.toggle_injection() == 0
-    pause.assert_called_once()
-    resume.assert_not_called()
-
-
-def test_toggle_resumes_when_inactive():
-    with mock.patch.object(rl, "injection_active", return_value=False), mock.patch.object(
-        rl, "resume_injection", return_value=0
-    ) as resume, mock.patch.object(rl, "pause_injection") as pause:
-        assert rl.toggle_injection() == 0
-    resume.assert_called_once()
-    pause.assert_not_called()
-
-
 def test_main_pause_does_not_launch_gui():
     with mock.patch.object(rl.sys, "argv", ["pygpsclient-rtk", "pause"]), mock.patch.object(
         rl, "pause_injection", return_value=0

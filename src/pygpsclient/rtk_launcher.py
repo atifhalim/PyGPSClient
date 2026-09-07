@@ -22,7 +22,6 @@ Usage::
     pygpsclient-rtk status     # show service status
     pygpsclient-rtk pause      # stop ONLY the injector (GUI + base feed stay up)
     pygpsclient-rtk resume     # start the injector again
-    pygpsclient-rtk toggle     # flip the injector on/off (for a desktop icon)
 
 Created by semuconsulting fork (atifhalim/PyGPSClient).
 """
@@ -87,11 +86,6 @@ def _notify(title: str, body: str = "") -> None:
         pass
 
 
-def injection_active() -> bool:
-    """True if the injector service is currently running."""
-    return _systemctl("is-active", "--quiet", INJECTOR_UNIT) == 0
-
-
 def pause_injection() -> int:
     """Stop ONLY the injector. The relay (and so the GUI's base feed and GCP
     capture) stays up - this just pauses corrections to the drone."""
@@ -105,11 +99,6 @@ def resume_injection() -> int:
     rc = _systemctl("start", INJECTOR_UNIT)
     _notify("RTK injection resumed", "Corrections to the drone are flowing.")
     return rc
-
-
-def toggle_injection() -> int:
-    """Flip the injector on/off - convenient for a single desktop icon."""
-    return pause_injection() if injection_active() else resume_injection()
 
 
 def launch_gui(argv: Sequence[str]) -> int:
@@ -144,8 +133,6 @@ def main() -> int:
         return pause_injection()
     if argv and argv[0] == "resume":
         return resume_injection()
-    if argv and argv[0] == "toggle":
-        return toggle_injection()
     if argv and argv[0] == "start":
         argv = argv[1:]  # explicit 'start' subcommand; rest are GUI args
 

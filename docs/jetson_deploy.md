@@ -271,7 +271,7 @@ chmod +x ~/Desktop/pygpsclient-rtk-panel.desktop
 
 (GNOME: right-click → **Allow Launching** the first time.) The panel reads the
 same systemd user services the launcher manages, so it stays in sync with
-`pygpsclient-rtk` and the toggle icon.
+`pygpsclient-rtk` and the `pause`/`resume` commands.
 
 ## 9. Using the Survey / GCP GUI (while injecting)
 
