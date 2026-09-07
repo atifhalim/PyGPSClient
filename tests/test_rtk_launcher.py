@@ -81,6 +81,54 @@ def test_main_strips_explicit_start_subcommand():
     gui.assert_called_once_with(["--foo"])
 
 
+def test_pause_injection_stops_only_injector():
+    with mock.patch.object(rl.subprocess, "call", return_value=0) as call, mock.patch.object(
+        rl, "_notify"
+    ):
+        assert rl.pause_injection() == 0
+    call.assert_called_once_with(["systemctl", "--user", "stop", rl.INJECTOR_UNIT])
+
+
+def test_resume_injection_starts_only_injector():
+    with mock.patch.object(rl.subprocess, "call", return_value=0) as call, mock.patch.object(
+        rl, "_notify"
+    ):
+        assert rl.resume_injection() == 0
+    call.assert_called_once_with(["systemctl", "--user", "start", rl.INJECTOR_UNIT])
+
+
+def test_toggle_pauses_when_active():
+    with mock.patch.object(rl, "injection_active", return_value=True), mock.patch.object(
+        rl, "pause_injection", return_value=0
+    ) as pause, mock.patch.object(rl, "resume_injection") as resume:
+        assert rl.toggle_injection() == 0
+    pause.assert_called_once()
+    resume.assert_not_called()
+
+
+def test_toggle_resumes_when_inactive():
+    with mock.patch.object(rl, "injection_active", return_value=False), mock.patch.object(
+        rl, "resume_injection", return_value=0
+    ) as resume, mock.patch.object(rl, "pause_injection") as pause:
+        assert rl.toggle_injection() == 0
+    resume.assert_called_once()
+    pause.assert_not_called()
+
+
+def test_main_pause_does_not_launch_gui():
+    with mock.patch.object(rl.sys, "argv", ["pygpsclient-rtk", "pause"]), mock.patch.object(
+        rl, "pause_injection", return_value=0
+    ) as pause, mock.patch.object(rl, "launch_gui") as gui:
+        assert rl.main() == 0
+    pause.assert_called_once()
+    gui.assert_not_called()
+
+
+def test_notify_missing_binary_is_silent():
+    with mock.patch.object(rl.subprocess, "call", side_effect=FileNotFoundError):
+        rl._notify("x", "y")  # must not raise
+
+
 def test_launch_gui_execs_console_script():
     with mock.patch.object(rl.shutil, "which", return_value="/usr/bin/pygpsclient"), mock.patch.object(
         rl.os, "execvp"

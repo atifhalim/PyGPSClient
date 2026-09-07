@@ -18,8 +18,11 @@ Design (per the turnkey-but-manual requirement):
 Usage::
 
     pygpsclient-rtk            # start the services, then open the GUI
-    pygpsclient-rtk stop       # stop the services
+    pygpsclient-rtk stop       # stop all RTK services
     pygpsclient-rtk status     # show service status
+    pygpsclient-rtk pause      # stop ONLY the injector (GUI + base feed stay up)
+    pygpsclient-rtk resume     # start the injector again
+    pygpsclient-rtk toggle     # flip the injector on/off (for a desktop icon)
 
 Created by semuconsulting fork (atifhalim/PyGPSClient).
 """
@@ -76,6 +79,39 @@ def status_services(units: Sequence[str] = RTK_UNITS) -> int:
     return _systemctl("--no-pager", "status", *units)
 
 
+def _notify(title: str, body: str = "") -> None:
+    """Best-effort desktop notification (no-op if notify-send is absent)."""
+    try:
+        subprocess.call(["notify-send", title, body])
+    except FileNotFoundError:
+        pass
+
+
+def injection_active() -> bool:
+    """True if the injector service is currently running."""
+    return _systemctl("is-active", "--quiet", INJECTOR_UNIT) == 0
+
+
+def pause_injection() -> int:
+    """Stop ONLY the injector. The relay (and so the GUI's base feed and GCP
+    capture) stays up - this just pauses corrections to the drone."""
+    rc = _systemctl("stop", INJECTOR_UNIT)
+    _notify("RTK injection paused", "Corrections to the drone are stopped.")
+    return rc
+
+
+def resume_injection() -> int:
+    """Start the injector again (relay is left untouched)."""
+    rc = _systemctl("start", INJECTOR_UNIT)
+    _notify("RTK injection resumed", "Corrections to the drone are flowing.")
+    return rc
+
+
+def toggle_injection() -> int:
+    """Flip the injector on/off - convenient for a single desktop icon."""
+    return pause_injection() if injection_active() else resume_injection()
+
+
 def launch_gui(argv: Sequence[str]) -> int:
     """Launch the PyGPSClient GUI.
 
@@ -104,6 +140,12 @@ def main() -> int:
         return stop_services()
     if argv and argv[0] == "status":
         return status_services()
+    if argv and argv[0] == "pause":
+        return pause_injection()
+    if argv and argv[0] == "resume":
+        return resume_injection()
+    if argv and argv[0] == "toggle":
+        return toggle_injection()
     if argv and argv[0] == "start":
         argv = argv[1:]  # explicit 'start' subcommand; rest are GUI args
 
