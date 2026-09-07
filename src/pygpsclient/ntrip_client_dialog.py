@@ -34,6 +34,7 @@ from tkinter import (
     Frame,
     IntVar,
     Label,
+    LabelFrame,
     Listbox,
     N,
     Radiobutton,
@@ -44,6 +45,7 @@ from tkinter import (
     TclError,
     Tk,
     W,
+    messagebox,
     ttk,
 )
 from types import NoneType
@@ -69,6 +71,12 @@ from pygpsclient.globals import (
     UI,
     UIK,
     VALFLOAT,
+)
+from pygpsclient.base_coord import (
+    CapturedPoint,
+    capture_quality,
+    is_rtk_fixed,
+    write_fixed_base_env,
 )
 from pygpsclient.helpers import MAXALT, get_mp_info
 from pygpsclient.socketconfig_ntrip_frame import SocketConfigNtripFrame
@@ -141,12 +149,14 @@ class NTRIPConfigDialog(ToplevelDialog):
         self._settings = {}
         self._connected = False
         self._sourcetable = None
+        self._captured = None  # last CapturedPoint for the fixed-base survey
 
         self._body()
         self._do_layout()
         self._reset()
         self._attach_events()
         self._finalise()
+        self._refresh_base_status()
 
     def _body(self):
         """
@@ -293,6 +303,34 @@ class NTRIPConfigDialog(ToplevelDialog):
             state=DISABLED,
         )
 
+        # --- Base survey: capture an RTK FIXED position as a fixed base ---
+        self._frm_basesurvey = LabelFrame(
+            self._frm_body, text="Base survey - capture fixed base position"
+        )
+        self._lbl_bs_live = Label(self._frm_basesurvey, text="live: waiting…", anchor=W)
+        self._lbl_bs_captured = Label(
+            self._frm_basesurvey, text="captured: none", anchor=W
+        )
+        self._btn_bs_rover = Button(
+            self._frm_basesurvey,
+            text="Prepare rover mode",
+            command=lambda: self._prepare_rover(),
+            cursor=CLICK_CURSOR,
+        )
+        self._btn_bs_capture = Button(
+            self._frm_basesurvey,
+            text="Capture base position",
+            command=lambda: self._capture_base(),
+            cursor=CLICK_CURSOR,
+        )
+        self._btn_bs_usefixed = Button(
+            self._frm_basesurvey,
+            text="Use as fixed base",
+            command=lambda: self._use_fixed_base(),
+            cursor=CLICK_CURSOR,
+            state=DISABLED,
+        )
+
     def _do_layout(self):
         """
         Position widgets in frame.
@@ -347,6 +385,113 @@ class NTRIPConfigDialog(ToplevelDialog):
         )
         self._btn_connect.grid(column=0, row=18, padx=3, pady=3, sticky=W)
         self._btn_disconnect.grid(column=1, row=18, padx=3, pady=3, sticky=W)
+        ttk.Separator(self._frm_body).grid(
+            column=0, row=19, columnspan=5, padx=3, pady=3, sticky=EW
+        )
+        self._frm_basesurvey.grid(
+            column=0, row=20, columnspan=5, padx=3, pady=3, sticky=EW
+        )
+        self._lbl_bs_live.grid(
+            column=0, row=0, columnspan=2, padx=3, pady=2, sticky=EW
+        )
+        self._lbl_bs_captured.grid(
+            column=0, row=1, columnspan=2, padx=3, pady=2, sticky=EW
+        )
+        self._btn_bs_rover.grid(column=0, row=2, padx=3, pady=3, sticky=W)
+        self._btn_bs_capture.grid(column=0, row=3, padx=3, pady=3, sticky=W)
+        self._btn_bs_usefixed.grid(column=1, row=3, padx=3, pady=3, sticky=W)
+
+    def _refresh_base_status(self):
+        """Poll the live GNSS status into the base-survey display (~1 Hz)."""
+        try:
+            if not self.winfo_exists():
+                return
+        except TclError:
+            return
+        gns = self.__app.gnss_status
+        self._lbl_bs_live.config(
+            text=(
+                f"live: {gns.fix}  {gns.lat:.8f}, {gns.lon:.8f}  "
+                f"hae {gns.hae:.3f} m  hAcc {gns.hacc:.3f} m  sats {gns.siv}"
+            ),
+            fg=INFOCOL if is_rtk_fixed(gns.fix) else ERRCOL,
+        )
+        self.after(1000, self._refresh_base_status)
+
+    def _prepare_rover(self):
+        """Put the receiver into rover mode so it applies NTRIP corrections.
+
+        Sends a CFG-VALSET (TMODE3 off, RTCM output off) to the connected
+        receiver via the app's out-queue - no extra serial connection needed.
+        Required before an NTRIP survey, because a base in TMODE3 does not
+        apply corrections to its own position.
+        """
+        # pylint: disable=import-outside-toplevel
+        from pyubx2 import SET_LAYER_RAM, TXN_NONE, UBXMessage
+
+        from pygpsclient.gnss_base import build_base_config
+
+        try:
+            cfg = build_base_config(mode="disable")
+            msg = UBXMessage.config_set(SET_LAYER_RAM, TXN_NONE, cfg)
+            self.__app.gnss_outqueue.put(msg.serialize())
+        except Exception as err:  # pylint: disable=broad-exception-caught
+            self.set_status_label(f"Rover-mode config failed: {err}", ERRCOL)
+            return
+        self.set_status_label(
+            "Sent rover-mode config - connect NTRIP and wait for RTK FIXED", INFOCOL
+        )
+
+    def _capture_base(self):
+        """Snapshot the current position as the candidate fixed-base point."""
+        gns = self.__app.gnss_status
+        ok, msg = capture_quality(gns.fix, gns.hacc)
+        self._captured = CapturedPoint(
+            lat=gns.lat,
+            lon=gns.lon,
+            hae=gns.hae,
+            fix=gns.fix,
+            hacc=gns.hacc,
+            vacc=gns.vacc,
+            siv=gns.siv,
+            utc=str(gns.utc),
+        )
+        self._lbl_bs_captured.config(
+            text=(
+                f"captured: {gns.lat:.8f}, {gns.lon:.8f}, {gns.hae:.3f} m  ({msg})"
+            ),
+            fg=INFOCOL if ok else ERRCOL,
+        )
+        self._btn_bs_usefixed.config(state=NORMAL)
+        self.set_status_label(f"Captured base point - {msg}", INFOCOL if ok else ERRCOL)
+
+    def _use_fixed_base(self):
+        """Write the captured point into the base-setup env as the fixed base."""
+        if self._captured is None:
+            return
+        if not is_rtk_fixed(self._captured.fix):
+            if not messagebox.askyesno(
+                "Base setup",
+                "The captured point is not RTK FIXED "
+                f"({self._captured.fix}). Use it as the fixed base anyway?",
+            ):
+                return
+        try:
+            args = write_fixed_base_env(self._captured)
+        except OSError as err:
+            messagebox.showerror(
+                "Base setup", f"Could not write base config:\n{err}"
+            )
+            self.set_status_label("Failed to save fixed base", ERRCOL)
+            return
+        messagebox.showinfo(
+            "Base setup",
+            "Saved as the fixed base position:\n\n"
+            f"{args}\n\n"
+            "It takes effect next time you start the RTK pipeline "
+            "(RTK Control Panel → Start pipeline).",
+        )
+        self.set_status_label("Fixed base position saved", INFOCOL)
 
     def _attach_events(self):
         """

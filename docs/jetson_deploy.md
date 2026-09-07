@@ -288,6 +288,37 @@ Do **not** click **USB/UART** on `/dev/ttyACM0` - that would try to open the
 serial port directly and collide with `gnss-server`, which is holding it. Always
 connect the GUI via **TCP `localhost:50010`** instead.
 
+## 10. Capture a fixed base position with NTRIP (all in the GUI)
+
+When you have internet at the base site, you can use an NTRIP caster (a state
+RTN or a paid service) to get a **cm-accurate absolute position** and save it as
+the **fixed base coordinate** to reuse later offline. It lives in the existing
+**NTRIP Client** dialog (**Menu → NTRIP Client**), in a new **Base survey**
+section — no terminal.
+
+Order of operations:
+
+1. **Free the receiver:** stop the pipeline (RTK Control Panel → **Stop
+   pipeline**, or `pygpsclient-rtk stop`) so the serial port is free.
+2. In PyGPSClient, connect to the receiver directly: **USB/UART →
+   `/dev/ttyACM0`** (the NTRIP client must be able to *write* corrections to the
+   receiver, which the read-only relay can't do).
+3. Open **Menu → NTRIP Client**. In the **Base survey** section, click
+   **Prepare rover mode** (a base in TMODE3 won't correct its own position).
+4. Enter your caster (URL / port / mountpoint / user / password) and
+   **connect**. Watch the **live:** line climb `3D → DGPS → RTK FLOAT → RTK
+   FIXED`.
+5. At **RTK FIXED** with a tight hAcc, click **Capture base position** — it
+   snapshots the point and shows its accuracy.
+6. Click **Use as fixed base** — writes the point into `~/.config/rtcm-base.env`
+   as `--mode fixed`. (Not RTK FIXED? it asks for confirmation first.)
+7. Disconnect NTRIP, disconnect the GUI from the receiver, and **Start
+   pipeline** again. The base now broadcasts from that exact surveyed point —
+   **no internet needed** for the flight.
+
+Heights are ellipsoidal (HAE) end-to-end, so no geoid conversion is involved.
+Because only the *last* captured point is kept, just re-capture to replace it.
+
 ## Notes
 
 - **One holder of the serial port:** `gnss-server` owns `/dev/ttyACM0` and
