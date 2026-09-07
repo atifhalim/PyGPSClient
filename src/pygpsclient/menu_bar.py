@@ -23,6 +23,7 @@ from pygpsclient.strings import (
     DLGTRECORD,
     DLGTRINEX,
     DLGTSERVER,
+    DLGTSURVEY,
     DLGTTTY,
     DLGTUBX,
     DLGTUBXLEGACY,
@@ -48,6 +49,7 @@ DIALOGS = (
     DLGTTTY,
     DLGTRECORD,
     DLGTRINEX,
+    DLGTSURVEY,
 )
 
 

@@ -12,6 +12,7 @@
 [NTRIP Caster/Socket Server](#socketserver) |
 [GPX Track Viewer](#gpxviewer) |
 [RINEX Conversion](#rinex) |
+[Survey / GCP Capture](#survey) |
 [Mapquest API Key](#mapquestapi) |
 [User-defined Presets](#userdefined) |
 [CLI Utilities](#cli) |
@@ -460,6 +461,23 @@ that this is a User variable rather than a System/Global variable.
 3. Pass it via command line argument `--mqapikey`.
 
 *The web map refresh rate can be amended if required by changing the `mapupdateinterval_n:` value in your json configuration file.
+
+---
+## <a name="survey">Survey / GCP Capture</a>
+
+To display the Survey / GCP Capture Dialog, select Menu..Options..Survey / GCP Capture.
+
+This dialog captures the current (ideally RTK FIXED) receiver position and routes it, without any manual copy/paste, to two destinations used in drone survey / mapping workflows:
+
+* **Ground Control Points (GCPs)** for photogrammetry - each captured point is appended to a `gcp_survey.csv` field record (name, latitude, longitude, ellipsoidal height (HAE), MSL, horizontal/vertical accuracy, fix type, satellites and timestamp), and the captured set can be exported as a WebODM / [OpenDroneMap](https://docs.opendronemap.org/gcp/) `gcp_list.txt` starter (an `EPSG:4326` header followed by one coordinate row per point; the pixel/image-name columns are completed later in the WebODM GCP interface).
+* **QGroundControl base station** - the position is written into QGroundControl's settings file (`QGroundControl.ini`) as the RTK "Use Specified Base Position" (`useFixedBasePosition`, `fixedBasePositionLatitude/Longitude/Altitude/Accuracy`), so QGroundControl streams corrections referenced to an accurate coordinate. Existing QGroundControl settings are preserved. **QGroundControl must be closed when the base position is written and (re)started afterwards** to pick up the new value.
+
+The coordinate used for both destinations lives in the editable **Latitude / Longitude / Ellipsoidal height (HAE)** fields. These can be filled from the live receiver with the **Capture** button, or typed in by hand. Manual entry supports a **PPK / no-internet** workflow: the precise coordinate becomes available only after post-processing, at which point it is entered here and pushed to QGroundControl and/or the GCP file.
+
+Notes:
+
+* Altitude is treated as **WGS-84 ellipsoidal height (HAE)** throughout, which is what the QGroundControl base altitude field expects and what an RTK drone typically records against its imagery - avoid mixing this with orthometric/MSL height.
+* The **Enable RXM RAW msgs** button turns on the u-blox `RXM-RAWX` / `RXM-SFRBX` messages required for PPK; combine it with the [Recorder](#recorder) and [RINEX Conversion](#rinex) facilities to produce a raw observation file for post-processing.
 
 ---
 ## <a name="userdefined">User Defined Presets</a>

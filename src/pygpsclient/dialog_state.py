@@ -25,6 +25,7 @@ from pygpsclient.recorder_dialog import RecorderDialog
 from pygpsclient.rinex_dialog import RINEXDialog
 from pygpsclient.serverconfig_dialog import ServerConfigDialog
 from pygpsclient.settings_dialog import SettingsDialog
+from pygpsclient.survey_dialog import SurveyDialog
 from pygpsclient.strings import (
     DLG,
     DLGTABOUT,
@@ -36,6 +37,7 @@ from pygpsclient.strings import (
     DLGTRINEX,
     DLGTSERVER,
     DLGTSETTINGS,
+    DLGTSURVEY,
     DLGTTTY,
     DLGTUBX,
     DLGTUBXLEGACY,
@@ -115,6 +117,11 @@ class DialogState:
                 CLASS: SettingsDialog,
                 DLG: None,
                 RESIZE: False,
+            },
+            DLGTSURVEY: {
+                CLASS: SurveyDialog,
+                DLG: None,
+                RESIZE: True,
             },
             # add any new dialogs here
         }

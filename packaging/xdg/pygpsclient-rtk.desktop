@@ -1,0 +1,13 @@
+[Desktop Entry]
+# Touchscreen launcher for the Jetson. Tapping this starts the RTK correction
+# services (base-setup + injector) and opens the PyGPSClient GUI. Copy to
+# ~/.local/share/applications/ (or ~/Desktop) and set Exec= to the full path of
+# the pygpsclient-rtk script in your env, e.g.:
+#   /home/atif/miniforge3/envs/rtk/bin/pygpsclient-rtk
+Type=Application
+Name=PyGPSClient RTK
+Comment=Start RTK base + RTCM->MAVLink injector, then open PyGPSClient
+Exec=/home/atif/miniforge3/envs/rtk/bin/pygpsclient-rtk
+Icon=pygpsclient
+Terminal=false
+Categories=Utility;Science;Geoscience;

@@ -1,0 +1,13 @@
+[Desktop Entry]
+# Touchscreen control panel for the RTK pipeline: live fix state (NO FIX / 3D /
+# DGPS / RTK FLOAT / RTK FIXED), sats, sets counter, the three service
+# indicators, a rolling log, and Start / Pause / Resume / Stop buttons.
+# Copy to ~/.local/share/applications/ (or ~/Desktop) and set Exec= to the full
+# path, e.g.:  /home/atif/miniforge3/envs/rtk/bin/pygpsclient-rtk-panel
+Type=Application
+Name=RTK Control Panel
+Comment=Live RTK pipeline status with Start/Pause controls
+Exec=/home/atif/miniforge3/envs/rtk/bin/pygpsclient-rtk-panel
+Icon=pygpsclient
+Terminal=false
+Categories=Utility;Science;Geoscience;

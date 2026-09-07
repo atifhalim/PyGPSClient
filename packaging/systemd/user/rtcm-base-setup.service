@@ -1,0 +1,25 @@
+[Unit]
+# One-shot: configure the local u-blox receiver as an RTK base station and
+# enable its RTCM3 output, before the injector starts. Idempotent - safe to
+# re-run whenever you (re)launch the GUI.
+#
+# This is a systemd *user* service. It runs as you, only inside your desktop
+# session, and is NOT enabled at boot: it starts when you open the application
+# (pygpsclient-rtk), and you keep full manual control. Your login user must be
+# a member of the 'dialout' group for serial access.
+Description=Configure u-blox RTK base (PyGPSClient gnss-base)
+Documentation=https://github.com/atifhalim/PyGPSClient/blob/master/docs/jetson_deploy.md
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=%h/.config/rtcm-base.env
+# %h expands to your home directory. Edit the path below if you installed into
+# a venv rather than the miniforge 'rtk' env. $GNSS_BASE_ARGS is intentionally
+# unquoted so systemd word-splits it into separate CLI arguments.
+ExecStart=%h/miniforge3/envs/rtk/bin/gnss-base $GNSS_BASE_ARGS
+
+[Install]
+# Only relevant if you ever 'systemctl --user enable' it; by default the
+# launcher starts it on demand and it is not enabled.
+WantedBy=default.target

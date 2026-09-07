@@ -1,0 +1,21 @@
+# Stable device name for the RTK base receiver on the Jetson.
+#
+# Without this, a u-blox base can enumerate as /dev/ttyACM0 or ttyACM1 etc.
+# depending on boot order, which breaks a fixed service config. This rule
+# creates a stable /dev/rtk-base symlink so rtcm-mavlink --rtcm-serial
+# /dev/rtk-base always finds it.
+#
+# 1. Find your receiver's identifiers:
+#      udevadm info -a -n /dev/ttyACM0 | grep -E 'idVendor|idProduct|serial'
+#    u-blox is usually idVendor 1546. Use the serial if you have two identical
+#    receivers (base + rover) on the same machine.
+# 2. Edit the values below to match, copy to
+#      /etc/udev/rules.d/99-rtk-base.rules
+#    then reload:
+#      sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# Match by vendor/product (single receiver):
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1546", ATTRS{idProduct}=="01a9", SYMLINK+="rtk-base"
+#
+# Or match by unique serial number (two identical receivers) - preferred:
+# SUBSYSTEM=="tty", ATTRS{idVendor}=="1546", ATTRS{serial}=="REPLACE_WITH_SERIAL", SYMLINK+="rtk-base"
