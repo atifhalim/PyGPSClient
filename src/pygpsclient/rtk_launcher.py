@@ -32,8 +32,15 @@ import subprocess
 import sys
 from collections.abc import Sequence
 
-# The two user services, in start order (systemd orders them via After=/Wants=).
-RTK_UNITS: tuple[str, ...] = ("rtcm-base-setup.service", "rtcm-mavlink.service")
+# The RTK user services, in start order.
+#  * base-setup (one-shot) configures the receiver as a base and releases the port
+#  * gnss-server holds the serial port and re-serves the stream over local TCP
+#  * rtcm-mavlink reads that TCP stream and injects RTCM onto the MAVLink link
+# Serving over TCP lets the injector AND the PyGPSClient GUI share one receiver.
+BASE_SETUP_UNIT = "rtcm-base-setup.service"
+RELAY_UNIT = "gnss-server.service"
+INJECTOR_UNIT = "rtcm-mavlink.service"
+RTK_UNITS: tuple[str, ...] = (BASE_SETUP_UNIT, RELAY_UNIT, INJECTOR_UNIT)
 
 
 def _systemctl(*args: str) -> int:
@@ -45,10 +52,18 @@ def _systemctl(*args: str) -> int:
         return 127
 
 
-def start_services(units: Sequence[str] = RTK_UNITS) -> int:
-    """(Re)start the RTK user services. 'restart' is idempotent, so relaunching
-    the GUI while they are already running is safe."""
-    return _systemctl("restart", *units)
+def start_services() -> int:
+    """(Re)start the RTK user services in the right order.
+
+    Only one process may hold the receiver's serial port, so the port-holders
+    are stopped first, the one-shot base config runs while the port is free
+    (it blocks to completion), then the relay and injector come back up.
+    Idempotent - safe to call on every GUI launch.
+    """
+    _systemctl("stop", INJECTOR_UNIT, RELAY_UNIT)
+    rc_base = _systemctl("restart", BASE_SETUP_UNIT)
+    rc_run = _systemctl("restart", RELAY_UNIT, INJECTOR_UNIT)
+    return rc_base or rc_run
 
 
 def stop_services(units: Sequence[str] = RTK_UNITS) -> int:

@@ -8,9 +8,11 @@
 # alive across crashes / USB dropouts / Herelink link loss via Restart=always.
 Description=RTCM3 to MAVLink injector (PyGPSClient)
 Documentation=https://github.com/atifhalim/PyGPSClient/blob/master/docs/jetson_deploy.md
-# Start after the base receiver has been configured.
-After=rtcm-base-setup.service
-Wants=rtcm-base-setup.service
+# Start after the serial->TCP relay (which itself starts after the base is
+# configured). The injector reads RTCM from that relay over local TCP so the
+# GUI can share the same receiver.
+After=gnss-server.service
+Wants=gnss-server.service
 
 [Service]
 Type=simple

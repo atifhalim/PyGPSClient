@@ -1,0 +1,24 @@
+[Unit]
+# Serial -> TCP relay (pygnssutils gnssserver). Holds the base receiver's USB
+# serial port and re-serves the raw GNSS stream (UBX/NMEA + RTCM3) over a local
+# TCP socket, so the injector AND the PyGPSClient GUI can both use one receiver
+# at the same time (only one process may hold the serial port directly).
+#
+# systemd *user* service - runs as you, only in your desktop session, not at
+# boot. Starts after the base has been configured; supervised with Restart=always.
+Description=GNSS serial->TCP relay (PyGPSClient gnssserver)
+Documentation=https://github.com/atifhalim/PyGPSClient/blob/master/docs/jetson_deploy.md
+After=rtcm-base-setup.service
+Wants=rtcm-base-setup.service
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/gnss-server.env
+# %h expands to your home; edit the path if you use a venv instead of the
+# miniforge 'rtk' env. $GNSS_SERVER_ARGS is unquoted so systemd word-splits it.
+ExecStart=%h/miniforge3/envs/rtk/bin/gnssserver $GNSS_SERVER_ARGS
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

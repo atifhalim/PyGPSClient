@@ -100,10 +100,18 @@ The services read their arguments from two **user-owned** env files under
 ```bash
 mkdir -p ~/.config
 cp packaging/systemd/rtcm-base.env.example    ~/.config/rtcm-base.env
+cp packaging/systemd/gnss-server.env.example  ~/.config/gnss-server.env
 cp packaging/systemd/rtcm-mavlink.env.example ~/.config/rtcm-mavlink.env
 $EDITOR ~/.config/rtcm-base.env               # base mode / port
-$EDITOR ~/.config/rtcm-mavlink.env            # base port, --dest, --monitor
+$EDITOR ~/.config/gnss-server.env             # base port -> local TCP relay
+$EDITOR ~/.config/rtcm-mavlink.env            # --dest (Herelink), --monitor
 ```
+
+There are **three** services: `rtcm-base-setup` (one-shot, configures the
+base), `gnss-server` (holds the USB serial port and re-serves the stream on
+local TCP `50010`), and `rtcm-mavlink` (reads that TCP relay and injects RTCM
+onto the Herelink link). Serving over TCP is what lets the injector **and** the
+PyGPSClient GUI use the one receiver at the same time.
 
 `~/.config/rtcm-base.env` — survey-in base (location changes each deployment):
 
@@ -149,6 +157,7 @@ installed, not enabled** — nothing starts at boot; the launcher starts them.
 ```bash
 mkdir -p ~/.config/systemd/user
 cp packaging/systemd/user/rtcm-base-setup.service ~/.config/systemd/user/
+cp packaging/systemd/user/gnss-server.service     ~/.config/systemd/user/
 cp packaging/systemd/user/rtcm-mavlink.service    ~/.config/systemd/user/
 systemctl --user daemon-reload
 ```
@@ -226,19 +235,30 @@ systemctl --user stop rtcm-mavlink.service     # rover fix should drop from RTK
 systemctl --user start rtcm-mavlink.service    # ... and climb back
 ```
 
-## 8. Using the Survey / GCP GUI
+## 8. Using the Survey / GCP GUI (while injecting)
 
-The GUI opens with `pygpsclient-rtk` (or plain `pygpsclient`). Then
-**Menu → Options → Survey / GCP Capture** for base survey and GCP capture.
+The GUI opens with `pygpsclient-rtk`. Because `gnss-server` re-serves the
+receiver over local TCP, the GUI can watch the **same** receiver the injector
+is using - no need to stop anything. In the GUI:
+
+1. Set the connection to **TCP**: `Server: localhost`, `Port: 50010`, protocol
+   `TCP IPv4` (these are the defaults), then click the **TCP/UDP** button.
+2. The position/fix/sats fields populate from the base receiver.
+3. **Menu → Options → Survey / GCP Capture** for base survey and GCP capture.
+
+Do **not** click **USB/UART** on `/dev/ttyACM0` - that would try to open the
+serial port directly and collide with `gnss-server`, which is holding it. Always
+connect the GUI via **TCP `localhost:50010`** instead.
 
 ## Notes
 
-- **Serial vs the service:** only one program can hold the base's serial port.
-  If you open the base directly in the GUI, stop the injector first
-  (`pygpsclient-rtk stop`) and vice-versa.
+- **One holder of the serial port:** `gnss-server` owns `/dev/ttyACM0` and
+  fans the stream out over TCP `50010`; the injector and the GUI are both TCP
+  clients of it. Nothing else should open the serial port directly while the
+  services run (`pygpsclient-rtk stop` first if you need to).
 - **Herelink link:** the Jetson must be on the Herelink Wi-Fi network to reach
-  its MAVLink stream (`--dest udpout:<herelink-ip>:14552`). Check reachability
-  with `ping <herelink-ip>`.
+  its MAVLink stream (`--dest udpout:192.168.43.1:14550`). Check reachability
+  with `ping 192.168.43.1`.
 - **Bandwidth:** keep the base RTCM message set lean (1005/1006 + MSM4
   1074/1084/1094/1124 + 1230) so it fits comfortably over the Herelink link.
 - **No boot autostart by design:** the services are disabled user units. They

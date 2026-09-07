@@ -5,12 +5,24 @@ from unittest import mock
 import pygpsclient.rtk_launcher as rl
 
 
-def test_start_services_restarts_units():
+def test_start_services_orders_port_handoff():
+    # Stop the port-holders, run the one-shot base config while the port is
+    # free, then bring the relay + injector back up.
     with mock.patch.object(rl.subprocess, "call", return_value=0) as call:
         assert rl.start_services() == 0
-    call.assert_called_once_with(
-        ["systemctl", "--user", "restart", *rl.RTK_UNITS]
-    )
+    assert call.call_args_list == [
+        mock.call(["systemctl", "--user", "stop", rl.INJECTOR_UNIT, rl.RELAY_UNIT]),
+        mock.call(["systemctl", "--user", "restart", rl.BASE_SETUP_UNIT]),
+        mock.call(
+            ["systemctl", "--user", "restart", rl.RELAY_UNIT, rl.INJECTOR_UNIT]
+        ),
+    ]
+
+
+def test_start_services_propagates_failure():
+    # Non-zero from the base-setup restart is surfaced.
+    with mock.patch.object(rl.subprocess, "call", side_effect=[0, 1, 0]):
+        assert rl.start_services() == 1
 
 
 def test_stop_services():
